@@ -1,9 +1,9 @@
 import os
 import telebot
 import sqlite3
-from docx import Document
+import aspose.words as aw
 
-TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
+TOKEN = '7041510449:AAECwA7tOmc43RcpLbWXl-zlKrpOkZUnI20'
 bot = telebot.TeleBot(TOKEN)
 
 # Глобальная переменная для отслеживания текущего состояния развития диалога
@@ -15,6 +15,7 @@ current_task_theory = None
 con = sqlite3.connect("sql_bd.db", check_same_thread=False)
 cur = con.cursor()
 
+
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     global current_state
@@ -22,6 +23,7 @@ def send_welcome(message):
     bot.reply_to(message, "Привет! Я - твой помощник для подготовки к экзамену по русскому языку. "
                           "Я предоставлю тебе теорию и прототипы заданий. Чтобы начать, напиши 'Теория' "
                           "для получения теории по выбранному заданию или 'Практика' для выполнения практических заданий.")
+
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
@@ -44,7 +46,8 @@ def handle_message(message):
         if text.isdigit() and 1 <= int(text) <= 9:
             global current_task_number, current_task_theory
             current_task_number = int(text)
-            current_task_theory = cur.execute("""SELECT content FROM theory WHERE id = ?""", (current_task_number,)).fetchone()[0]
+            current_task_theory = \
+                cur.execute("""SELECT content FROM theory WHERE id = ?""", (current_task_number,)).fetchone()[0]
             bot.reply_to(message, "Теория успешно найдена. Выберите формат получаемой теории:",
                          reply_markup=create_theory_format_keyboard())
 
@@ -57,6 +60,7 @@ def handle_message(message):
     else:
         bot.reply_to(message, "Прости, я не понял ваш запрос. Попробуйте еще раз.")
 
+
 def create_theory_format_keyboard():
     keyboard = telebot.types.InlineKeyboardMarkup()
     text_button = telebot.types.InlineKeyboardButton(text="Текстовое сообщение", callback_data="text_message")
@@ -64,6 +68,7 @@ def create_theory_format_keyboard():
     text_file_button = telebot.types.InlineKeyboardButton(text="Текстовый файл", callback_data="text_file")
     keyboard.row(text_button, word_button, text_file_button)
     return keyboard
+
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback_query(call):
@@ -74,14 +79,16 @@ def handle_callback_query(call):
     elif call.data == "text_file":
         create_and_send_text_file(call.message.chat.id, current_task_theory, current_task_number)
 
+
 def create_and_send_word_file(chat_id, content, task_number):
-    doc = Document()
-    doc.add_paragraph(content)
-    file_path = f"Теория к заданию {task_number}.docx"
-    doc.save(file_path)
-    with open(file_path, 'rb') as file:
+    doc = aw.Document()
+    builder = aw.DocumentBuilder(doc)
+    builder.write(content)
+    doc.save(f"Теория к заданию {task_number}.docx")
+    with open(f"Теория к заданию {task_number}.docx", 'rb') as file:
         bot.send_document(chat_id, file)
-    os.remove(file_path)  # Удаляем временный файл
+    os.remove(f"Теория к заданию {task_number}.docx")
+
 
 def create_and_send_text_file(chat_id, content, task_number):
     file_path = f"Теория к заданию {task_number}.txt"
@@ -90,5 +97,6 @@ def create_and_send_text_file(chat_id, content, task_number):
     with open(file_path, 'rb') as file:
         bot.send_document(chat_id, file)
     os.remove(file_path)  # Удаляем временный файл
+
 
 bot.polling()
