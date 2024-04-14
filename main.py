@@ -32,25 +32,26 @@ def send_welcome(message):
     current_state = None  # Сбрасываем состояние при каждом новом запуске бота
     bot.reply_to(message, "Привет! Я - твой помощник для подготовки к экзамену по русскому языку. "
                           "Я предоставлю тебе теорию и прототипы заданий. Чтобы начать, напиши 'Теория' "
-                          "для получения теории по выбранному заданию или 'Практика' для выполнения практических заданий.")
+                          "для получения теории по выбранному заданию, или 'Прототипы' для выполнения упражнений,"
+                          " или 'Варианты' для генерации целиковых вариантов")
 
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
-    global current_state, current_task_number
+    global current_state, current_task_number, current_task_prototype
     text = message.text.lower()
 
-    if text == 'теория':
+    if text.startswith('теор'):
         current_state = 'теория'
         bot.reply_to(message, "Выберите номер задания от 1 до 9, к которому хотите получить теорию.")
 
-    elif text == 'практика':
-        current_state = 'практика'
-        bot.reply_to(message, "Выберите номер задания от 1 до 9:\n"
-                              "1. Прототипы задания 1\n"
-                              "2. Прототипы задания 2\n"
-                              "...\n"
-                              "9. Прототипы задания 9")
+    elif text.startswith('протот'):
+        current_state = 'прототипы'
+        bot.reply_to(message, "Выберите номер задания от 1 до 9, к которому хотите получить прототипы.")
+
+    elif text.startswith('вариа'):
+        current_state = 'варианты'
+        bot.reply_to(message, "Выберите сложность варианта.")
 
     elif current_state == 'теория':
         if text.isdigit() and 1 <= int(text) <= 9:
@@ -61,14 +62,37 @@ def handle_message(message):
             bot.reply_to(message, "Теория успешно найдена. Выберите формат получаемой теории:",
                          reply_markup=create_theory_format_keyboard())
 
-    elif current_state == 'практика':
+    elif current_state == 'прототипы':
         if text.isdigit() and 1 <= int(text) <= 9:
             current_task_number = int(text)
             bot.reply_to(message, "Прототипы успешно найдены. Выберите категорию сложности прототипов:",
                          reply_markup=create_prototype_difficulty_keyboard())
+        else:
+            bot.reply_to(message, "Некорректно введён номер задания для нахождения прототипов.")
+
+    elif current_state == 'answer_input':
+        if text == 'ещё прототип':
+            prototype = get_random_prototype(current_task_difficulty)
+            current_task_prototype = prototype  # Выбираем прототип задачи
+            bot.send_message(message.chat.id, f"Вы выбрали категорию сложности '{current_task_difficulty}'. "
+                                                   f"Вот прототип задания:\n\n{current_task_prototype[1]}\n")
+        else:
+            handle_user_answer(message)
 
     else:
         bot.reply_to(message, "Прости, я не понял ваш запрос. Попробуйте еще раз.")
+
+
+def handle_user_answer(message):
+    global current_state, current_task_prototype, current_task_difficulty
+    user_answer = message.text.strip().lower()
+    correct_answer = current_task_prototype[3].strip().lower()
+    if user_answer == correct_answer:
+        bot.send_message(message.chat.id, "Правильно! Ваш ответ верный.")
+        bot.send_message(message.chat.id, f"Решение:\n{current_task_prototype[4]}")
+    else:
+        bot.send_message(message.chat.id, "Неправильно! Ознакомьтесь с решением и запомните его.")
+        bot.send_message(message.chat.id, f"Решение:\n{current_task_prototype[4]}\n\nПравильный ответ: {''.join(correct_answer.strip().split()[1:])}")
 
 
 def create_theory_format_keyboard():
@@ -95,7 +119,7 @@ def get_random_prototype(difficulty):
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback_query(call):
-    global current_task_difficulty, current_task_prototype
+    global current_task_difficulty, current_task_prototype, current_state
     if call.data == "text_message":
         bot.send_message(call.message.chat.id, current_task_theory)
     elif call.data == "word_file":
@@ -105,10 +129,10 @@ def handle_callback_query(call):
     elif call.data in difficulty_mapping.keys():
         current_task_difficulty = call.data
         prototype = get_random_prototype(current_task_difficulty)
-        current_task_prototype = prototype[1]  # Выбираем условие задачи
+        current_task_prototype = prototype  # Выбираем прототип задачи
         bot.send_message(call.message.chat.id, f"Вы выбрали категорию сложности '{current_task_difficulty}'. "
-                                               f"Вот прототип задания:\n\n{current_task_prototype}\n\n"
-                                               "Введите свой ответ в формате 'Ответ: 123.'.")
+                                               f"Вот прототип задания:\n\n{current_task_prototype[1]}\n")
+        current_state = 'answer_input'
     else:
         bot.reply_to(call.message, "Прости, я не понял ваш запрос. Попробуйте еще раз.")
 
