@@ -8,6 +8,7 @@ TOKEN = '7041510449:AAECwA7tOmc43RcpLbWXl-zlKrpOkZUnI20'
 bot = telebot.TeleBot(TOKEN)
 
 # Глобальные переменные для отслеживания текущего состояния развития диалога
+current_task_theory = None
 current_state = None
 current_task_number = None
 current_task_difficulty = None
@@ -17,7 +18,7 @@ current_task_prototype = None
 con = sqlite3.connect("sql_bd.db", check_same_thread=False)
 cur = con.cursor()
 
-# Словарь для соответствия русских и английских названий сложности
+# Словарь для соответствия названий сложности
 difficulty_mapping = {
     "Лёгкие": "лёгкое",
     "Нормальные": "нормальное",
@@ -29,11 +30,10 @@ difficulty_mapping = {
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     global current_state
-    current_state = None  # Сбрасываем состояние при каждом новом запуске бота
+    current_state = None
     bot.reply_to(message, "Привет! Я - твой помощник для подготовки к экзамену по русскому языку. "
                           "Я предоставлю тебе теорию и прототипы заданий. Чтобы начать, напиши 'Теория' "
-                          "для получения теории по выбранному заданию, или 'Прототипы' для выполнения упражнений,"
-                          " или 'Варианты' для генерации целиковых вариантов")
+                          "для получения теории по выбранному заданию, или 'Прототипы' для выполнения упражнений.")
 
 
 @bot.message_handler(func=lambda message: True)
@@ -70,12 +70,12 @@ def handle_message(message):
         else:
             bot.reply_to(message, "Некорректно введён номер задания для нахождения прототипов.")
 
-    elif current_state == 'answer_input':
+    elif current_state == 'ответ_на_прототип':
         if text == 'ещё прототип':
             prototype = get_random_prototype(current_task_difficulty)
             current_task_prototype = prototype  # Выбираем прототип задачи
             bot.send_message(message.chat.id, f"Вы выбрали категорию сложности '{current_task_difficulty}'. "
-                                                   f"Вот прототип задания:\n\n{current_task_prototype[1]}\n")
+                                              f"Вот прототип задания:\n\n{current_task_prototype[1]}\n")
         else:
             handle_user_answer(message)
 
@@ -92,7 +92,9 @@ def handle_user_answer(message):
         bot.send_message(message.chat.id, f"Решение:\n{current_task_prototype[4]}")
     else:
         bot.send_message(message.chat.id, "Неправильно! Ознакомьтесь с решением и запомните его.")
-        bot.send_message(message.chat.id, f"Решение:\n{current_task_prototype[4]}\n\nПравильный ответ: {''.join(correct_answer.strip().split()[1:])}")
+        bot.send_message(message.chat.id,
+                         f"Решение:\n{current_task_prototype[4]}\n\nПравильный ответ:"
+                         f" {''.join(correct_answer.strip().split()[1:])}")
 
 
 def create_theory_format_keyboard():
@@ -132,7 +134,7 @@ def handle_callback_query(call):
         current_task_prototype = prototype  # Выбираем прототип задачи
         bot.send_message(call.message.chat.id, f"Вы выбрали категорию сложности '{current_task_difficulty}'. "
                                                f"Вот прототип задания:\n\n{current_task_prototype[1]}\n")
-        current_state = 'answer_input'
+        current_state = 'ответ_на_прототип'
     else:
         bot.reply_to(call.message, "Прости, я не понял ваш запрос. Попробуйте еще раз.")
 
@@ -153,7 +155,7 @@ def create_and_send_text_file(chat_id, content, task_number):
         file.write(content)
     with open(file_path, 'rb') as file:
         bot.send_document(chat_id, file)
-    os.remove(file_path)  # Удаляем временный файл
+    os.remove(file_path)
 
 
 bot.polling()
