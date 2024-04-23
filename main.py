@@ -61,6 +61,8 @@ def handle_message(message):
                 cur.execute("""SELECT content FROM theory WHERE id = ?""", (current_task_number,)).fetchone()[0]
             bot.reply_to(message, "Теория успешно найдена. Выберите формат получаемой теории:",
                          reply_markup=create_theory_format_keyboard())
+        else:
+            bot.reply_to(message, "Не понял номер задания. Введите цифрой, пожалуйста.")
 
     elif current_state == 'прототипы':
         if text.isdigit() and 1 <= int(text) <= 9:
